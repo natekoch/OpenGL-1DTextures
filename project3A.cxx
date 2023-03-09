@@ -109,15 +109,22 @@ GLuint SetupDataForRendering()
   // GL Textures
   
   GLuint color_texture = 0;
-  int num = 256;
-  const unsigned char * data = GetColorMap(num);
+  int color_size = 256;
+  const unsigned char * color_data = GetColorMap(color_size);
   glGenTextures(1, &color_texture);
   glActiveTexture(GL_TEXTURE0);
   glBindTexture(GL_TEXTURE_1D, color_texture);
-  glTexImage1D(GL_TEXTURE_1D, 0, GL_RGB, num, 0, GL_RGB, GL_UNSIGNED_BYTE, data);
+  glTexImage1D(GL_TEXTURE_1D, 0, GL_RGB, color_size, 0, GL_RGB, GL_UNSIGNED_BYTE, color_data);
   glGenerateMipmap(GL_TEXTURE_1D);
   
-  //TODO tiger texture
+  GLuint tiger_texture = 0;
+  int tiger_size = 2048;
+  const unsigned char * tiger_data = GetTigerStripes(tiger_size);
+  glGenTextures(1, &tiger_texture);
+  glActiveTexture(GL_TEXTURE1);
+  glBindTexture(GL_TEXTURE_1D, tiger_texture);
+  glTexImage1D(GL_TEXTURE_1D, 0, GL_RED, tiger_size, 0, GL_RED, GL_UNSIGNED_BYTE, tiger_data);
+  glGenerateMipmap(GL_TEXTURE_1D);
   
   GLuint vao = 0;
   glGenVertexArrays(1, &vao);
@@ -155,9 +162,11 @@ const char *VertexShader =
   "float LdotN, diffuse, RdotV, specular;\n"
   "out float tex_coord;\n"
   "out float shading_amount;\n"
+  "out float depth;\n"
   "void main() {\n"
   "  vec4 position = vec4(vertex_position, 1.0);\n"
   "  gl_Position = MVP*position;\n"
+  "  depth = gl_Position.z/gl_Position.w;\n"
   "  data = vertex_data;\n"
   "  tex_coord = (data-1)/5.0;\n"
   // Assign shading_amount a value by calculating phong shading
@@ -176,11 +185,14 @@ const char *VertexShader =
 const char *FragmentShader =
   "#version 400\n"
   "in float tex_coord;\n"
+  "in float depth;\n"
   "in float shading_amount;\n"
   "uniform sampler1D color_texture;\n"
+  "uniform sampler1D tiger_texture;\n"
   "out vec4 frag_color;\n"
   "void main() {\n"
-  "  frag_color = texture(color_texture, tex_coord) * shading_amount;\n"
+  "  vec4 tiger_stripe = texture(tiger_texture, depth);\n"
+  "  frag_color = texture(color_texture, tex_coord) * shading_amount * tiger_stripe.x;\n"
   "}\n";
 
 int main() {
@@ -290,6 +302,8 @@ int main() {
   // Code block for textures
   GLuint colorTextureLocation = glGetUniformLocation(shader_programme, "color_texture");
   glUniform1i(colorTextureLocation, 0);
+  GLuint tigerTextureLocation = glGetUniformLocation(shader_programme, "tiger_texture");
+  glUniform1i(tigerTextureLocation, 1);
 
   while (!glfwWindowShouldClose(window)) {
     // wipe the drawing surface clear
