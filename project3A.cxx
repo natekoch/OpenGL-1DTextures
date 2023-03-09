@@ -105,6 +105,19 @@ GLuint SetupDataForRendering()
   glGenBuffers(1, &indices_vbo);
   glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, indices_vbo);
   glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(tri_indices)/sizeof(int) * sizeof(GLuint), tri_indices, GL_STATIC_DRAW);
+
+  // GL Textures
+  
+  GLuint color_texture = 0;
+  int num = 256;
+  const unsigned char * data = GetColorMap(num);
+  glGenTextures(1, &color_texture);
+  glActiveTexture(GL_TEXTURE0);
+  glBindTexture(GL_TEXTURE_1D, color_texture);
+  glTexImage1D(GL_TEXTURE_1D, 0, GL_RGB, num, 0, GL_RGB, GL_UNSIGNED_BYTE, data);
+  glGenerateMipmap(GL_TEXTURE_1D);
+  
+  //TODO tiger texture
   
   GLuint vao = 0;
   glGenVertexArrays(1, &vao);
@@ -138,13 +151,15 @@ const char *VertexShader =
   "uniform vec3 lightdir;   // Lighting direction \n"
   "uniform vec4 lightcoeff; // Lighting coeff, Ka, Kd, Ks, alpha\n"
   "vec3 reflection, viewDir;\n"
+  "float data;\n"
   "float LdotN, diffuse, RdotV, specular;\n"
-  "out float data;\n"
+  "out float tex_coord;\n"
   "out float shading_amount;\n"
   "void main() {\n"
   "  vec4 position = vec4(vertex_position, 1.0);\n"
   "  gl_Position = MVP*position;\n"
   "  data = vertex_data;\n"
+  "  tex_coord = (data-1)/5.0;\n"
   // Assign shading_amount a value by calculating phong shading
   // camaraloc  : is the location of the camera
   // lightdir   : is the direction of the light
@@ -160,28 +175,12 @@ const char *VertexShader =
 
 const char *FragmentShader =
   "#version 400\n"
-  "in float data;\n"
+  "in float tex_coord;\n"
   "in float shading_amount;\n"
-  "float t, r, g, b;\n"
+  "uniform sampler1D color_texture;\n"
   "out vec4 frag_color;\n"
   "void main() {\n"
-  // update frag_color by color based on data
-  "  if (data >= 1.0 && data < 4.5) {\n"
-  "    t = (data - 1.0) / (4.5 - 1.0);\n"
-  "    r = 0.25 + t * (1.0 - 0.25);\n"
-  "    g = 0.25 + t * (1.0 - 0.25);\n"
-  "    b = 1.0;\n"
-  "    frag_color = vec4(r, g, b, 1.0);\n"
-  "  }\n"
-  "  else if (data >= 4.5 && data <= 6) {\n"
-  "    t = (data - 6) / (4.5 - 6);\n"
-  "    r = 1.0;\n"
-  "    g = 0.25 + t * (1.0 - 0.25);\n"
-  "    b = 0.25 + t * (1.0 - 0.25);\n"
-  "    frag_color = vec4(r, g, b, 1.0);\n"
-  "  }\n"
-  // Update frag_color by mixing the shading factor
-  "  frag_color *= shading_amount;"
+  "  frag_color = texture(color_texture, tex_coord) * shading_amount;\n"
   "}\n";
 
 int main() {
@@ -196,7 +195,7 @@ int main() {
   glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
   glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
 
-  GLFWwindow *window = glfwCreateWindow(700, 700, "CIS 441", NULL, NULL);
+  GLFWwindow *window = glfwCreateWindow(700, 700, "1D Textures", NULL, NULL);
   if (!window) {
     fprintf(stderr, "ERROR: could not open window with GLFW3\n");
     glfwTerminate();
@@ -288,6 +287,10 @@ int main() {
   GLuint lcoeloc = glGetUniformLocation(shader_programme, "lightcoeff");
   glUniform4fv(lcoeloc, 1, &lightcoeff[0]);
 
+  // Code block for textures
+  GLuint colorTextureLocation = glGetUniformLocation(shader_programme, "color_texture");
+  glUniform1i(colorTextureLocation, 0);
+
   while (!glfwWindowShouldClose(window)) {
     // wipe the drawing surface clear
     glClearColor(1, 1, 1, 1);
@@ -295,8 +298,6 @@ int main() {
 
     glBindVertexArray(vao);
     // Draw triangles
-
-    // Add correct number of indices
     glDrawElements( GL_TRIANGLES, 77535, GL_UNSIGNED_INT, NULL );
 
     // update other events like input handling
